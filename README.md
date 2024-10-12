@@ -1,1 +1,1 @@
-# stock-market-chatbot
+# Stock Market Chatbot
