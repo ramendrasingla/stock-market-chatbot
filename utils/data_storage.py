@@ -3,21 +3,25 @@ import re
 import sqlite3
 import pandas as pd
 from datetime import datetime
-from utils.helper_funcs import generate_id
+from utils.helper_funcs import generate_id, setup_logging
+
+# Setup Logging
+global logger
+logger = setup_logging()
 
 # Connect to SQLite database
 def connect_db(db_name=None, folder_path='./data'):
     # Create the folder if it doesn't exist
     if not os.path.exists(folder_path):
         os.makedirs(folder_path)
-        print(f"Created folder: {folder_path}")
+        logger.info(f"Created folder: {folder_path}")
     
     # Full path to the database
     db_path = os.path.join(folder_path, db_name)
     
     # Connect to the SQLite database
     conn = sqlite3.connect(db_path)
-    print(f"Connected to database at: {db_path}")
+    logger.info(f"Connected to database at: {db_path}")
     
     return conn
 
@@ -28,9 +32,9 @@ def initialize_pipeline_log(conn, script_path = "pipeline_log.sql"):
         try:
             # Execute the SQL script
             conn.executescript(sql_script)
-            print(f'Successfully executed: {script_path.split("/")[-1]}')
+            logger.info(f'Successfully executed: {script_path.split("/")[-1]}')
         except sqlite3.Error as e:
-            print(f'Error executing {script_path.split("/")[-1]}: {e}')
+            logger.error(f'Error executing {script_path.split("/")[-1]}: {e}')
     
     conn.commit()    
     return
@@ -53,9 +57,9 @@ def handle_sql_error(e, df):
     - df: The DataFrame being saved to SQLite.
     
     Returns:
-    - None, but prints the problematic column name and sample values.
+    - None, but logs the problematic column name and sample values.
     """
-    print(f"Error saving to SQLite: {e}")
+    logger.error(f"Error saving to SQLite: {e}")
     
     # Regex to find the problematic index from the error message
     match = re.search(r'parameter (\d+)', str(e))
@@ -69,16 +73,16 @@ def handle_sql_error(e, df):
             # Get the problematic column name
             problematic_col_name = df.columns[problematic_index]
             
-            # Print the column name and sample values
-            print(f"Problematic Column: {problematic_col_name}")
-            print(f"Sample Values: {df.iloc[:, problematic_index].head()}")
+            # Log the column name and sample values
+            logger.error(f"Problematic Column: {problematic_col_name}")
+            logger.error(f"Sample Values: {df.iloc[:, problematic_index].head()}")
             
-            # Optionally, print the unique values in the column
-            print(f"Unique Values: {df.iloc[:, problematic_index].unique()}")
+            # Optionally, log the unique values in the column
+            logger.error(f"Unique Values: {df.iloc[:, problematic_index].unique()}")
         else:
-            print(f"Problematic index {problematic_index} is out of bounds for the DataFrame columns.")
+            logger.error(f"Problematic index {problematic_index} is out of bounds for the DataFrame columns.")
     else:
-        print("Could not extract column index from the error message.")
+        logger.error("Could not extract column index from the error message.")
 
 # Helper function to preprocess the DataFrame
 def preprocess_dataframe(df):
@@ -139,7 +143,7 @@ def create_table_if_not_exists(df, table_name, conn, id_columns):
     try:
         cursor.execute(create_table_sql)
         conn.commit()
-        print(f"Table '{table_name}' created successfully.")
+        logger.info(f"Table '{table_name}' created successfully.")
     except Exception as e:
         handle_sql_error(e, df)
     finally:
@@ -174,7 +178,7 @@ def add_missing_columns(df, table_name, conn):
         try:
             cursor.execute(alter_sql)
             conn.commit()
-            print(f"Added column '{col}' to table '{table_name}'.")
+            logger.info(f"Added column '{col}' to table '{table_name}'.")
         except Exception as e:
             handle_sql_error(e, df)
         finally:
@@ -209,34 +213,37 @@ def upsert_data(df, table_name, conn, id_columns):
     try:
         conn.executemany(upsert_sql, df.values.tolist())
         conn.commit()
-        print(f"Data successfully upserted to '{table_name}'.")
+        logger.info(f"Data successfully upserted to '{table_name}'.")
     except Exception as e:
         handle_sql_error(e, df)
 
-# Error handler function
-def handle_sql_error(error, df):
-    """
-    Handle SQL errors, logging or printing detailed error information.
-    """
-    print(f"Error encountered: {error}")
-
 # Main function to save the DataFrame to SQLite
-def save_to_sqlite(df, table_name, conn, ticker, id_columns=None, mode='replace'):
+def save_to_sqlite(data, table_name, conn, ticker, id_columns=None, mode='replace'):
     """
     Save the DataFrame to an SQLite table, creating it if it doesn't exist or adding missing columns if needed.
     """
-    df['ticker'] = ticker
-    df['ticker_id'] = generate_id(ticker).astype(str)
-    
-    df = preprocess_dataframe(df)
-    
-    if not table_exists(conn, table_name):
-        create_table_if_not_exists(df, table_name, conn, id_columns)
-    else:
-        add_missing_columns(df, table_name, conn)
-    
-    df = df.where(pd.notnull(df), None)  # Replace NaN with None for SQLite compatibility
-    upsert_data(df, table_name, conn, id_columns)
+
+    try:
+        wrapped_data = {k: v if isinstance(v, list) else [v] for k, v in data.items()}
+        df = pd.DataFrame(wrapped_data)
+
+        df['ticker'] = ticker
+        df['ticker_id'] = str(generate_id(ticker))
+
+        df = preprocess_dataframe(df)
+        
+        if not table_exists(conn, table_name):
+            create_table_if_not_exists(df, table_name, conn, id_columns)
+        else:
+            add_missing_columns(df, table_name, conn)
+        
+        df = df.where(pd.notnull(df), None)
+        upsert_data(df, table_name, conn, id_columns)
+
+    except Exception as e:
+        # Debugging DF
+        logger.error(data)
+        raise e
 
 # Function to update the pipeline log
 def update_pipeline_log(conn, ticker):
@@ -250,4 +257,4 @@ def update_pipeline_log(conn, ticker):
         conn.execute(query, (ticker, current_time))
         conn.commit()
     except sqlite3.IntegrityError as e:
-        print(f"Error updating pipeline log: {e}")
+        logger.error(f"Error updating pipeline log: {e}")

@@ -6,6 +6,7 @@ from utils.data_extraction import (get_analyst_recommendations, get_company_info
                                    get_financial_statements, get_historical_data)
 from utils.data_storage import (connect_db, save_to_sqlite, initialize_pipeline_log, 
                                 get_last_run_timestamp, update_pipeline_log)
+from utils.helper_funcs import setup_logging
 import pandas as pd
 import requests
 from bs4 import BeautifulSoup
@@ -16,6 +17,10 @@ from selenium.webdriver.common.by import By
 from webdriver_manager.chrome import ChromeDriverManager
 import time
 import traceback
+
+# Setup Logging
+global logger
+logger = setup_logging()
 
 # Function to scrape Indian stock market tickers
 def scrape_nse_tickers(folder_path = "./data"):
@@ -33,7 +38,7 @@ def scrape_nse_tickers(folder_path = "./data"):
     # Find the first row and extract the href from the download link
     first_row = driver.find_element(By.XPATH, '//tbody/tr[1]')
     excel_url = first_row.find_element(By.TAG_NAME, 'a').get_attribute('href')
-    print("URL: {}".format(excel_url))
+    logger.info("URL: {}".format(excel_url))
     driver.quit()
 
     # Save excel file and extract tickers
@@ -59,7 +64,7 @@ def execute_company_pipeline(conn, ticker, load_type='init'):
     if load_type == 'delta':
         last_run_timestamp = get_last_run_timestamp(conn, ticker)
         if not last_run_timestamp:
-            print(f"No previous run found for {ticker}. Running full init load.")
+            logger.info(f"No previous run found for {ticker}. Running full init load.")
             load_type = 'init'  # Switch to init if no previous run
 
     # Fetch company data
@@ -87,7 +92,8 @@ def execute_company_pipeline(conn, ticker, load_type='init'):
 
 # Function to run the pipeline for all companies or specific tickers
 def run_pipeline_for_companies(load_type='init', tickers=None, use_failed_tickers=False):
-    print(f"Running pipeline for {('all' if not tickers else 'specified')} companies as {load_type} load...")
+
+    logger.info(f"Running pipeline for {('all' if not tickers else 'specified')} companies as {load_type} load...")
 
     conn = connect_db(db_name='company_metadata.db', folder_path='./data/raw')  # Connect to SQLite3 database
     
@@ -100,14 +106,14 @@ def run_pipeline_for_companies(load_type='init', tickers=None, use_failed_ticker
         log_file = './data/logs/failed_tickers.log'
         if os.path.exists(log_file):
             with open(log_file, 'r') as f:
-                tickers = [line.split(' - ')[0].strip() for line in f.readlines()]
-            print(f"Found {len(tickers)} tickers in failed log.")
+                tickers = list(set([line.split(' - ')[0].strip() for line in f.readlines()]))
+            logger.info(f"Found {len(tickers)} tickers in failed log.")
         else:
-            print("No failed tickers log found.")
+            logger.info("No failed tickers log found.")
             return
     elif tickers is None:
         tickers = scrape_nse_tickers()
-        print(f"Found {len(tickers)} tickers.")
+        logger.info(f"Found {len(tickers)} tickers.")
     
     failed_tickers = []
     log_dir = './data/logs'
@@ -120,14 +126,14 @@ def run_pipeline_for_companies(load_type='init', tickers=None, use_failed_ticker
 
     # Process each ticker
     for ticker in tqdm(tickers):
-        print(f"Processing {ticker}...")
+        logger.info(f"Processing {ticker}...")
         try:
             execute_company_pipeline(conn, ticker, load_type)
         except Exception as e:
             # Log the error for this ticker
-            print(f"Failed to process {ticker}. Error: {e}")
+            logger.error(f"Failed to process {ticker}. Error: {e}")
             error_trace = traceback.format_exc()
-            print(f"Error details: {error_trace}")
+            logger.error(f"Error details: {error_trace}")
             failed_tickers.append(ticker)
             # Save the failed ticker and error in the log file
             with open(log_file, 'a') as f:
@@ -136,13 +142,13 @@ def run_pipeline_for_companies(load_type='init', tickers=None, use_failed_ticker
     # Close the database connection
     conn.close()
 
-    print("Completed loading data for companies.")
+    logger.info("Completed loading data for companies.")
 
     # Log the failed tickers if any
     if failed_tickers:
-        print(f"Failed to process {len(failed_tickers)} tickers. Check 'failed_tickers.log' for details.")
+        logger.info(f"Failed to process {len(failed_tickers)} tickers. Check 'failed_tickers.log' for details.")
     else:
-        print("All tickers processed successfully.")
+        logger.info("All tickers processed successfully.")
 
 # Main function to initiate the pipeline
 if __name__ == "__main__":
