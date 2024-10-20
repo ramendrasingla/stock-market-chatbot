@@ -10,7 +10,7 @@ __pycache__/
 data/
 
 # Test Script/Results
-test.py
+test.ipynb
 
 # Distribution / packaging
 .Python

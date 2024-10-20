@@ -25,7 +25,7 @@ def connect_db(db_name=None, folder_path='./data'):
     
     return conn
 
-def initialize_pipeline_log(conn, script_path = "pipeline_log.sql"):
+def initialize_table(conn, script_path = "pipeline_log.sql"):
 
     with open(script_path, 'r') as file:
         sql_script = file.read()
@@ -40,8 +40,8 @@ def initialize_pipeline_log(conn, script_path = "pipeline_log.sql"):
     return
 
 # Get the last run timestamp for a given ticker
-def get_last_run_timestamp(conn, ticker):
-    query = "SELECT last_run FROM pipeline_log WHERE ticker = ? ORDER BY last_run DESC LIMIT 1;"
+def get_last_run_timestamp(conn, ticker, timestamp_col = 'last_run'):
+    query = f"SELECT {timestamp_col} FROM pipeline_log WHERE ticker = ? ORDER BY {timestamp_col} DESC LIMIT 1;"
     cursor = conn.execute(query, (ticker,))
     result = cursor.fetchone()
     if result:
@@ -246,15 +246,49 @@ def save_to_sqlite(data, table_name, conn, ticker, id_columns=None, mode='replac
         raise e
 
 # Function to update the pipeline log
-def update_pipeline_log(conn, ticker):
+def update_pipeline_log(conn, ticker, timestamp_col = 'last_run', latest_timestamp = None):
     """
     Insert or update the pipeline log with the current timestamp.
     """
-    current_time = datetime.now()
-    query = "INSERT INTO pipeline_log (ticker, last_run) VALUES (?, ?)"
+    if not latest_timestamp:
+        latest_timestamp = datetime.now()
+
+    query = f"INSERT INTO pipeline_log (ticker, {timestamp_col}) VALUES (?, ?)"
     
     try:
-        conn.execute(query, (ticker, current_time))
+        conn.execute(query, (ticker, latest_timestamp))
         conn.commit()
     except sqlite3.IntegrityError as e:
         logger.error(f"Error updating pipeline log: {e}")
+
+def save_articles(conn, articles):
+    """Save articles to the database."""
+    cursor = conn.cursor()
+    
+    if articles:
+        # Log the number of articles being saved
+        logger.info(f"Saving {len(articles)} articles to the database.")
+        
+        for article in articles:
+            cursor.execute('''
+                INSERT INTO company_news (ticker, ticker_id, title, content, published_date)
+                VALUES (?, ?, ?, ?, ?)
+            ''', (article['ticker'], article['ticker_id'], article['title'], article['content'], article['published_date']))
+        
+        conn.commit()
+        logger.info("Articles saved successfully.")
+    else:
+        logger.info("No articles to save.")
+
+
+def log_published_dates(conn, ticker, oldest_date, latest_date):
+    """Logs the oldest and latest published dates for a specific company in the pipeline_log table."""
+    cursor = conn.cursor()
+    cursor.execute('''
+        INSERT INTO pipeline_log (ticker, oldest_published_date, latest_published_date)
+        VALUES (?, ?, ?)
+        ON CONFLICT(ticker) DO UPDATE SET
+        oldest_published_date=excluded.oldest_published_date,
+        latest_published_date=excluded.latest_published_date
+    ''', (ticker, oldest_date.isoformat(), latest_date.isoformat()))
+    conn.commit()

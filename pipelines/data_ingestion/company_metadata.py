@@ -1,60 +1,18 @@
 import sys
 import os
-sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/..")
+sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../..")
+import traceback
+from tqdm import tqdm
 
 from utils.data_extraction import (get_analyst_recommendations, get_company_info, 
-                                   get_financial_statements, get_historical_data)
-from utils.data_storage import (connect_db, save_to_sqlite, initialize_pipeline_log, 
+                                   get_financial_statements, get_historical_data, scrape_nse_tickers)
+from utils.data_storage import (connect_db, save_to_sqlite, initialize_table, 
                                 get_last_run_timestamp, update_pipeline_log)
 from utils.helper_funcs import setup_logging
-import pandas as pd
-import requests
-from bs4 import BeautifulSoup
-from tqdm import tqdm
-from selenium import webdriver
-from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.common.by import By
-from webdriver_manager.chrome import ChromeDriverManager
-import time
-import traceback
 
 # Setup Logging
 global logger
 logger = setup_logging()
-
-# Function to scrape Indian stock market tickers
-def scrape_nse_tickers(folder_path = "./data"):
-
-    # Set up the Chrome WebDriver
-    driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()))
-
-    # Navigate to the page
-    url = "https://www.nseindia.com/regulations/listing-compliance/nse-market-capitalisation-all-companies"
-    driver.get(url)
-
-    # Add a wait to ensure page loads completely (you can adjust the time if necessary)
-    time.sleep(5)
-
-    # Find the first row and extract the href from the download link
-    first_row = driver.find_element(By.XPATH, '//tbody/tr[1]')
-    excel_url = first_row.find_element(By.TAG_NAME, 'a').get_attribute('href')
-    logger.info("URL: {}".format(excel_url))
-    driver.quit()
-
-    # Save excel file and extract tickers
-    headers = {'User-Agent': 'Mozilla/5.0'}
-    response = requests.get(excel_url, headers=headers, allow_redirects=True, verify=False, timeout=10)
-    file_path = os.path.join(folder_path, 'temp.xlsx')
-    # Save the content as an .xlsx file
-    with open(file_path, 'wb') as file:
-        file.write(response.content)
-
-    df = pd.read_excel('./data/temp.xlsx')
-    nse_tickers = [ix + ".NS" for ix in df['Symbol'][:-2]]
-
-    os.remove(file_path)
-
-    return nse_tickers
 
 # Function to execute a single company's pipeline
 def execute_company_pipeline(conn, ticker, load_type='init'):
@@ -99,7 +57,7 @@ def run_pipeline_for_companies(load_type='init', tickers=None, use_failed_ticker
     
     # Initialize pipeline log for init load
     if load_type == 'init':
-        initialize_pipeline_log(conn, script_path="./metadata/company_metadata/pipeline_log.sql")
+        initialize_table(conn, script_path="./metadata/company_metadata/pipeline_log.sql")
     
     # Get tickers either from scraped tickers, passed tickers, or failed log
     if use_failed_tickers:

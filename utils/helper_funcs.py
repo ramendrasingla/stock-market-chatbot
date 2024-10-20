@@ -1,4 +1,5 @@
 import logging
+from datetime import timezone
 from logging.handlers import RotatingFileHandler
 
 def generate_id(input_data):
@@ -36,3 +37,9 @@ def setup_logging(log_path = './data/logs/pipeline.log'):
     logger.addHandler(console_handler)
 
     return logger
+
+# Convert a naive datetime to an aware datetime in UTC
+def to_utc(dt):
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)  # Make it aware with UTC timezone
+    return dt
