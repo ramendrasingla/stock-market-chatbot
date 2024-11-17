@@ -261,25 +261,6 @@ def update_pipeline_log(conn, ticker, timestamp_col = 'last_run', latest_timesta
     except sqlite3.IntegrityError as e:
         logger.error(f"Error updating pipeline log: {e}")
 
-def save_articles(conn, articles):
-    """Save articles to the database."""
-    cursor = conn.cursor()
-    
-    if articles:
-        # Log the number of articles being saved
-        logger.info(f"Saving {len(articles)} articles to the database.")
-        
-        for article in articles:
-            cursor.execute('''
-                INSERT INTO company_news (ticker, ticker_id, title, content, published_date)
-                VALUES (?, ?, ?, ?, ?)
-            ''', (article['ticker'], article['ticker_id'], article['title'], article['content'], article['published_date']))
-        
-        conn.commit()
-        logger.info("Articles saved successfully.")
-    else:
-        logger.info("No articles to save.")
-
 
 def log_published_dates(conn, ticker, oldest_date, latest_date):
     """Logs the oldest and latest published dates for a specific company in the pipeline_log table."""
