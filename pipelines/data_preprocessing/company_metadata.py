@@ -1,10 +1,11 @@
+import sys
+import os
+sys.path.append(os.path.dirname(os.getcwd() + "/../.."))
+
 from utils.helper_funcs import setup_logging
 from utils.data_storage import connect_db
 from utils.data_preprocessing import DataPreprocessor
 import pandas as pd
-import sys
-import os
-sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../..")
 
 
 # Setup Logging
