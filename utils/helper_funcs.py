@@ -1,3 +1,6 @@
+"""
+Common Helper Functions
+"""
 import logging
 from datetime import timezone
 from logging.handlers import RotatingFileHandler
@@ -15,16 +18,19 @@ def generate_id(input_data):
     """
     return abs(hash(input_data))
 
+
 # Configure logging
 
 
-def setup_logging(log_path='./data/logs/pipeline.log'):
-    logger = logging.getLogger('stock_pipeline')
+def setup_logging(log_path="./data/logs/pipeline.log"):
+    """
+    Setting up logger for us to log console information, errors, debugs.
+    """
+    logger = logging.getLogger("stock_pipeline")
     logger.setLevel(logging.INFO)
 
     # Create a file handler for logging to a file
-    file_handler = RotatingFileHandler(
-        log_path, maxBytes=2000000, backupCount=5)
+    file_handler = RotatingFileHandler(log_path, maxBytes=2000000, backupCount=5)
     file_handler.setLevel(logging.INFO)
 
     # Create a console handler for logging to the terminal
@@ -32,7 +38,7 @@ def setup_logging(log_path='./data/logs/pipeline.log'):
     console_handler.setLevel(logging.INFO)
 
     # Create a logging format
-    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+    formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
     file_handler.setFormatter(formatter)
     console_handler.setFormatter(formatter)
 
@@ -42,10 +48,14 @@ def setup_logging(log_path='./data/logs/pipeline.log'):
 
     return logger
 
+
 # Convert a naive datetime to an aware datetime in UTC
 
 
 def to_utc(dt):
+    """
+    Convert to timestamp utc
+    """
     if dt.tzinfo is None:
         # Make it aware with UTC timezone
         return dt.replace(tzinfo=timezone.utc)

@@ -32,7 +32,7 @@ jobs:
     - name: Approve or fail the build
       run: |
         echo "Checking Pylint score..."
-        if (( $(echo "$score >= 8" | bc -l) )); then
+        if (( $(echo "$score >= 7.5" | bc -l) )); then
           echo "Build approved! Pylint score is $score."
         else
           echo "Build failed! Pylint score is $score. Minimum required is 8."

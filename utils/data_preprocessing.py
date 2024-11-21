@@ -1,6 +1,10 @@
+"""
+Data Preprocessing Utilities
+"""
 import re
-import pandas as pd
+
 import numpy as np
+import pandas as pd
 
 
 class DataPreprocessor:
@@ -17,8 +21,8 @@ class DataPreprocessor:
         """
         non_null_values = column[column.notnull()]
         numeric_count = sum(
-            isinstance(val, (int, float)) or
-            str(val).replace('.', '', 1).replace('-', '', 1).isdigit()
+            isinstance(val, (int, float))
+            or str(val).replace(".", "", 1).replace("-", "", 1).isdigit()
             for val in non_null_values
         )
         total_count = len(non_null_values)
@@ -37,6 +41,7 @@ class DataPreprocessor:
         Returns:
             bool: True if the column is datetime-like, False otherwise.
         """
+
         def is_valid_datetime(value):
             try:
                 if pd.isna(value):
@@ -73,14 +78,13 @@ class DataPreprocessor:
                 return entry  # Return original value for non-strings
 
             # Split the entry by newline and process each line
-            lines = entry.split('\n')
+            lines = entry.split("\n")
             date_value_pairs = []
 
             for line in lines:
                 # Match date and numeric value pairs (e.g., "2024-03-31
                 # 12345.67")
-                match = re.match(
-                    r"(\d{4}-\d{2}-\d{2})\s+([+-]?\d*\.?\d+|NaN)", line.strip())
+                match = re.match(r"(\d{4}-\d{2}-\d{2})\s+([+-]?\d*\.?\d+|NaN)", line.strip())
                 if match:
                     date, value = match.groups()
                     if value.lower() != "nan":  # Exclude NaN values
@@ -111,6 +115,7 @@ class DataPreprocessor:
         Returns:
             pd.Series: Preprocessed column.
         """
+
         def clean_value(value):
             if pd.isna(value):
                 return np.nan  # Preserve NaN
@@ -140,11 +145,11 @@ class DataPreprocessor:
         Returns:
             pd.Series: Preprocessed column with datetime or NaT.
         """
+
         def convert_to_datetime(value):
             try:
                 if date_format:
-                    return pd.to_datetime(
-                        value, format=date_format, errors="coerce")
+                    return pd.to_datetime(value, format=date_format, errors="coerce")
                 else:
                     return pd.to_datetime(value, errors="coerce")
             except Exception:
@@ -163,8 +168,7 @@ class DataPreprocessor:
         Returns:
             pd.DataFrame: Rows that are still problematic (non-numeric).
         """
-        return column[~column.apply(
-            lambda x: isinstance(x, (int, float)) or pd.isnull(x))]
+        return column[~column.apply(lambda x: isinstance(x, (int, float)) or pd.isnull(x))]
 
     @staticmethod
     def validate_post_preprocessing_for_datetime(column):
@@ -177,5 +181,4 @@ class DataPreprocessor:
         Returns:
             pd.DataFrame: Rows that are still problematic (non-datetime).
         """
-        return column[~column.apply(lambda x: pd.isnull(
-            x) or isinstance(x, pd.Timestamp))]
+        return column[~column.apply(lambda x: pd.isnull(x) or isinstance(x, pd.Timestamp))]

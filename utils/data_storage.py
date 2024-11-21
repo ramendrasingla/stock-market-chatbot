@@ -1,8 +1,15 @@
+"""
+Data Storage
+"""
 import os
+import sys
 import re
 import sqlite3
-import pandas as pd
 from datetime import datetime
+import pandas as pd
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__)
+                                             , "../")))
 from utils.helper_funcs import generate_id, setup_logging
 
 # Setup Logging
@@ -12,7 +19,7 @@ logger = setup_logging()
 # Connect to SQLite database
 
 
-def connect_db(db_name=None, folder_path='./data'):
+def connect_db(db_name=None, folder_path="./data"):
     # Create the folder if it doesn't exist
     if not os.path.exists(folder_path):
         os.makedirs(folder_path)
@@ -30,7 +37,7 @@ def connect_db(db_name=None, folder_path='./data'):
 
 def initialize_table(conn, script_path="pipeline_log.sql"):
 
-    with open(script_path, 'r') as file:
+    with open(script_path, "r") as file:
         sql_script = file.read()
         try:
             # Execute the SQL script
@@ -42,11 +49,19 @@ def initialize_table(conn, script_path="pipeline_log.sql"):
     conn.commit()
     return
 
+
 # Get the last run timestamp for a given ticker
 
 
-def get_last_run_timestamp(conn, ticker, timestamp_col='last_run'):
-    query = f"SELECT {timestamp_col} FROM pipeline_log WHERE ticker = ? ORDER BY {timestamp_col} DESC LIMIT 1;"
+def get_last_run_timestamp(conn, ticker, timestamp_col="last_run"):
+    """
+    During delta run, we are interested in knowing the last run
+    """
+    query = f"""SELECT {timestamp_col} 
+            FROM pipeline_log 
+            WHERE ticker = ? 
+            ORDER BY {timestamp_col} DESC LIMIT 1;
+            """
     cursor = conn.execute(query, (ticker,))
     result = cursor.fetchone()
     if result:
@@ -56,7 +71,8 @@ def get_last_run_timestamp(conn, ticker, timestamp_col='last_run'):
 
 def handle_sql_error(e, df):
     """
-    Handle SQLite error by extracting the problematic parameter index and identifying the column causing the issue.
+    Handle SQLite error by extracting the problematic parameter index
+    and identifying the column causing the issue.
 
     Args:
     - e: Exception raised by the SQLite save operation.
@@ -68,7 +84,7 @@ def handle_sql_error(e, df):
     logger.error(f"Error saving to SQLite: {e}")
 
     # Regex to find the problematic index from the error message
-    match = re.search(r'parameter (\d+)', str(e))
+    match = re.search(r"parameter (\d+)", str(e))
 
     if match:
         # Extract the problematic parameter index (SQLite uses 1-based index,
@@ -82,17 +98,17 @@ def handle_sql_error(e, df):
 
             # Log the column name and sample values
             logger.error(f"Problematic Column: {problematic_col_name}")
-            logger.error(
-                f"Sample Values: {df.iloc[:, problematic_index].head()}")
+            logger.error(f"Sample Values: {df.iloc[:, problematic_index].head()}")
 
             # Optionally, log the unique values in the column
-            logger.error(
-                f"Unique Values: {df.iloc[:, problematic_index].unique()}")
+            logger.error(f"Unique Values: {df.iloc[:, problematic_index].unique()}")
         else:
             logger.error(
-                f"Problematic index {problematic_index} is out of bounds for the DataFrame columns.")
+                f"Problematic index {problematic_index} is out of bounds for the DataFrame columns."
+            )
     else:
         logger.error("Could not extract column index from the error message.")
+
 
 # Helper function to preprocess the DataFrame
 
@@ -102,9 +118,8 @@ def preprocess_dataframe(df):
     Preprocess the DataFrame: format datetime columns, adjust numeric types,
     and handle object and boolean columns for SQLite compatibility.
     """
-    if 'period' in df.columns and pd.api.types.is_datetime64_any_dtype(
-            df['period']):
-        df['period'] = df['period'].dt.strftime('%Y-%m-%d %H:%M:%S')
+    if "period" in df.columns and pd.api.types.is_datetime64_any_dtype(df["period"]):
+        df["period"] = df["period"].dt.strftime("%Y-%m-%d %H:%M:%S")
 
     for col in df.columns:
         if pd.api.types.is_numeric_dtype(df[col]):
@@ -122,11 +137,12 @@ def handle_numeric_columns(column):
     Adjust numeric column types for SQLite compatibility.
     Convert int64 to float64 if necessary.
     """
-    if column.dtype == 'int64':
-        return column.astype('float64')
-    elif column.dtype == 'float64':
-        return column.astype('float64')
+    if column.dtype == "int64":
+        return column.astype("float64")
+    if column.dtype == "float64":
+        return column.astype("float64")
     return column
+
 
 # Function to create a table in SQLite if it doesn't exist
 
@@ -150,8 +166,8 @@ def create_table_if_not_exists(df, table_name, conn, id_columns):
             pk_column = id_columns[0]
             constraints.append(f'PRIMARY KEY ("{pk_column}")')
         else:
-            unique_constraint = ', '.join([f'"{col}"' for col in id_columns])
-            constraints.append(f'UNIQUE ({unique_constraint})')
+            unique_constraint = ", ".join([f'"{col}"' for col in id_columns])
+            constraints.append(f"UNIQUE ({unique_constraint})")
 
     create_table_sql = f'CREATE TABLE "{table_name}" ({", ".join(create_columns + constraints)});'
 
@@ -165,6 +181,7 @@ def create_table_if_not_exists(df, table_name, conn, id_columns):
     finally:
         cursor.close()
 
+
 # Function to check if the table exists
 
 
@@ -173,11 +190,11 @@ def table_exists(conn, table_name):
     Check if a table exists in the SQLite database.
     """
     cursor = conn.cursor()
-    cursor.execute(
-        f"SELECT name FROM sqlite_master WHERE type='table' AND name='{table_name}';")
+    cursor.execute(f"SELECT name FROM sqlite_master WHERE type='table' AND name='{table_name}';")
     exists = cursor.fetchone() is not None
     cursor.close()
     return exists
+
 
 # Function to add missing columns if needed
 
@@ -205,6 +222,7 @@ def add_missing_columns(df, table_name, conn):
         finally:
             cursor.close()
 
+
 # Function to map Pandas data types to SQLite data types
 
 
@@ -212,29 +230,32 @@ def map_dtype_to_sqlite(dtype):
     """
     Map Pandas data types to SQLite compatible types.
     """
-    if 'int' in str(dtype):
-        return 'INTEGER'
-    elif 'float' in str(dtype):
-        return 'REAL'
-    return 'TEXT'
+    if "int" in str(dtype):
+        return "INTEGER"
+    if "float" in str(dtype):
+        return "REAL"
+    return "TEXT"
+
 
 # Function to insert or upsert data
 
 
 def upsert_data(df, table_name, conn, id_columns):
     """
-    Insert or upsert data into the SQLite table, handling conflicts on primary key or unique constraints.
+    Insert or upsert data into the SQLite table,
+    handling conflicts on primary key or unique constraints.
     """
-    columns = ', '.join([f'"{col}"' for col in df.columns])
-    placeholders = ', '.join(['?'] * len(df.columns))
-    update_clause = ', '.join(
-        [f'"{col}" = excluded."{col}"' for col in df.columns if col not in id_columns])
+    columns = ", ".join([f'"{col}"' for col in df.columns])
+    placeholders = ", ".join(["?"] * len(df.columns))
+    update_clause = ", ".join(
+        [f'"{col}" = excluded."{col}"' for col in df.columns if col not in id_columns]
+    )
 
-    upsert_sql = f'''
+    upsert_sql = f"""
     INSERT INTO "{table_name}" ({columns})
     VALUES ({placeholders})
     ON CONFLICT({', '.join([f'"{col}"' for col in id_columns])}) DO UPDATE SET {update_clause};
-    '''
+    """
 
     try:
         conn.executemany(upsert_sql, df.values.tolist())
@@ -243,22 +264,22 @@ def upsert_data(df, table_name, conn, id_columns):
     except Exception as e:
         handle_sql_error(e, df)
 
+
 # Main function to save the DataFrame to SQLite
 
 
-def save_to_sqlite(data, table_name, conn, ticker,
-                   id_columns=None, mode='replace'):
+def save_to_sqlite(data, table_name, conn, ticker, id_columns=None):
     """
-    Save the DataFrame to an SQLite table, creating it if it doesn't exist or adding missing columns if needed.
+    Save the DataFrame to an SQLite table,
+    creating it if it doesn't exist or adding missing columns if needed.
     """
 
     try:
-        wrapped_data = {k: v if isinstance(
-            v, list) else [v] for k, v in data.items()}
+        wrapped_data = {k: v if isinstance(v, list) else [v] for k, v in data.items()}
         df = pd.DataFrame(wrapped_data)
 
-        df['ticker'] = ticker
-        df['ticker_id'] = str(generate_id(ticker))
+        df["ticker"] = ticker
+        df["ticker_id"] = str(generate_id(ticker))
 
         df = preprocess_dataframe(df)
 
@@ -275,11 +296,11 @@ def save_to_sqlite(data, table_name, conn, ticker,
         logger.error(data)
         raise e
 
+
 # Function to update the pipeline log
 
 
-def update_pipeline_log(
-        conn, ticker, timestamp_col='last_run', latest_timestamp=None):
+def update_pipeline_log(conn, ticker, timestamp_col="last_run", latest_timestamp=None):
     """
     Insert or update the pipeline log with the current timestamp.
     """
@@ -296,13 +317,18 @@ def update_pipeline_log(
 
 
 def log_published_dates(conn, ticker, oldest_date, latest_date):
-    """Logs the oldest and latest published dates for a specific company in the pipeline_log table."""
+    """
+    Logs the oldest and latest published dates in the pipeline_log table.
+    """
     cursor = conn.cursor()
-    cursor.execute('''
+    cursor.execute(
+        """
         INSERT INTO pipeline_log (ticker, oldest_published_date, latest_published_date)
         VALUES (?, ?, ?)
         ON CONFLICT(ticker) DO UPDATE SET
         oldest_published_date=excluded.oldest_published_date,
         latest_published_date=excluded.latest_published_date
-    ''', (ticker, oldest_date.isoformat(), latest_date.isoformat()))
+    """,
+        (ticker, oldest_date.isoformat(), latest_date.isoformat()),
+    )
     conn.commit()
