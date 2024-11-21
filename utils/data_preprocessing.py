@@ -77,7 +77,8 @@ class DataPreprocessor:
             date_value_pairs = []
 
             for line in lines:
-                # Match date and numeric value pairs (e.g., "2024-03-31    12345.67")
+                # Match date and numeric value pairs (e.g., "2024-03-31
+                # 12345.67")
                 match = re.match(
                     r"(\d{4}-\d{2}-\d{2})\s+([+-]?\d*\.?\d+|NaN)", line.strip())
                 if match:
@@ -88,7 +89,8 @@ class DataPreprocessor:
             # Sort pairs by date (latest first)
             date_value_pairs.sort(key=lambda x: x[0], reverse=True)
 
-            # Return the value for the latest date, or original entry if no valid pairs
+            # Return the value for the latest date, or original entry if no
+            # valid pairs
             return date_value_pairs[0][1] if date_value_pairs else entry
 
         # Apply the extraction logic to the entire column
@@ -141,7 +143,8 @@ class DataPreprocessor:
         def convert_to_datetime(value):
             try:
                 if date_format:
-                    return pd.to_datetime(value, format=date_format, errors="coerce")
+                    return pd.to_datetime(
+                        value, format=date_format, errors="coerce")
                 else:
                     return pd.to_datetime(value, errors="coerce")
             except Exception:
@@ -160,7 +163,8 @@ class DataPreprocessor:
         Returns:
             pd.DataFrame: Rows that are still problematic (non-numeric).
         """
-        return column[~column.apply(lambda x: isinstance(x, (int, float)) or pd.isnull(x))]
+        return column[~column.apply(
+            lambda x: isinstance(x, (int, float)) or pd.isnull(x))]
 
     @staticmethod
     def validate_post_preprocessing_for_datetime(column):
@@ -173,4 +177,5 @@ class DataPreprocessor:
         Returns:
             pd.DataFrame: Rows that are still problematic (non-datetime).
         """
-        return column[~column.apply(lambda x: pd.isnull(x) or isinstance(x, pd.Timestamp))]
+        return column[~column.apply(lambda x: pd.isnull(
+            x) or isinstance(x, pd.Timestamp))]

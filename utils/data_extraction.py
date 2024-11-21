@@ -28,7 +28,8 @@ def scrape_nse_tickers(folder_path="./data", output_col='Symbol'):
     url = "https://www.nseindia.com/regulations/listing-compliance/nse-market-capitalisation-all-companies"
     driver.get(url)
 
-    # Add a wait to ensure page loads completely (you can adjust the time if necessary)
+    # Add a wait to ensure page loads completely (you can adjust the time if
+    # necessary)
     time.sleep(5)
 
     # Find the first row and extract the href from the download link

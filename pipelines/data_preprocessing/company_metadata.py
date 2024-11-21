@@ -1,11 +1,10 @@
-import sys
-import os
-sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../..")
-
 from utils.helper_funcs import setup_logging
 from utils.data_storage import connect_db
 from utils.data_preprocessing import DataPreprocessor
 import pandas as pd
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../..")
 
 
 # Setup Logging
@@ -29,7 +28,8 @@ def preprocess_table(table_name, raw_table_conn):
     # Preprocess Numeric Columns
     numeric_processed_columns = []
     for col in df.columns:
-        if df[col].dtype == "object" and DataPreprocessor.is_numeric_like(df[col]):
+        if df[col].dtype == "object" and DataPreprocessor.is_numeric_like(
+                df[col]):
             logger.info(f"Preprocessing numeric-like column: {col}")
 
             if df[col].str.contains('\n', na=False).any():
@@ -52,7 +52,8 @@ def preprocess_table(table_name, raw_table_conn):
     remaining_columns = [
         col for col in df.columns if col not in numeric_processed_columns]
     for col in remaining_columns:
-        if df[col].dtype == "object" and DataPreprocessor.is_datetime_like(df[col]):
+        if df[col].dtype == "object" and DataPreprocessor.is_datetime_like(
+                df[col]):
             logger.info(f"Preprocessing datetime-like column: {col}")
             df[col] = DataPreprocessor.preprocess_datetime_column(df[col])
             problematic_rows = DataPreprocessor.validate_post_preprocessing_for_datetime(

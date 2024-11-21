@@ -19,6 +19,21 @@ jobs:
         python -m pip install --upgrade pip
         pip install pylint
         pip install -r requirements.txt
-    - name: Analysing the code with pylint
-      run: |
-        pylint $(git ls-files '*.py')
+        - name: Run Pylint and calculate score
+        id: pylint
+        run: |
+          # Run Pylint and output the score
+          pylint $(git ls-files '*.py') > pylint_output.txt || true
+          # Extract the score from Pylint output
+          score=$(grep "Your code has been rated at" pylint_output.txt | awk '{print $7}' | cut -d'/' -f1)
+          echo "Pylint score: $score"
+          echo "score=$score" >> $GITHUB_ENV
+      - name: Approve or fail the build
+        run: |
+          echo "Checking Pylint score..."
+          if (( $(echo "$score >= 8" | bc -l) )); then
+            echo "Build approved! Pylint score is $score."
+          else
+            echo "Build failed! Pylint score is $score. Minimum required is 8."
+            exit 1
+          fi

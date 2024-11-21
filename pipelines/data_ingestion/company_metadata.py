@@ -2,13 +2,13 @@ import sys
 import os
 sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../..")
 
-from utils.data_storage import (connect_db, save_to_sqlite, initialize_table,
-                                get_last_run_timestamp, update_pipeline_log)
+import traceback
+from tqdm import tqdm
+from utils.helper_funcs import setup_logging
 from utils.data_extraction import (get_analyst_recommendations, get_company_info,
                                    get_financial_statements, get_historical_data, scrape_nse_tickers)
-from utils.helper_funcs import setup_logging
-from tqdm import tqdm
-import traceback
+from utils.data_storage import (connect_db, save_to_sqlite, initialize_table,
+                                get_last_run_timestamp, update_pipeline_log)
 
 
 # Setup Logging
@@ -64,7 +64,8 @@ def execute_company_pipeline(conn, ticker, load_type='init'):
 # Function to run the pipeline for all companies or specific tickers
 
 
-def run_pipeline_for_companies(load_type='init', tickers=None, use_failed_tickers=False):
+def run_pipeline_for_companies(
+        load_type='init', tickers=None, use_failed_tickers=False):
 
     logger.info(
         f"Running pipeline for {('all' if not tickers else 'specified')} companies as {load_type} load...")

@@ -71,7 +71,8 @@ def handle_sql_error(e, df):
     match = re.search(r'parameter (\d+)', str(e))
 
     if match:
-        # Extract the problematic parameter index (SQLite uses 1-based index, Python uses 0-based)
+        # Extract the problematic parameter index (SQLite uses 1-based index,
+        # Python uses 0-based)
         problematic_index = int(match.group(1)) - 1
 
         # Ensure index is within DataFrame column range
@@ -101,7 +102,8 @@ def preprocess_dataframe(df):
     Preprocess the DataFrame: format datetime columns, adjust numeric types,
     and handle object and boolean columns for SQLite compatibility.
     """
-    if 'period' in df.columns and pd.api.types.is_datetime64_any_dtype(df['period']):
+    if 'period' in df.columns and pd.api.types.is_datetime64_any_dtype(
+            df['period']):
         df['period'] = df['period'].dt.strftime('%Y-%m-%d %H:%M:%S')
 
     for col in df.columns:
@@ -244,7 +246,8 @@ def upsert_data(df, table_name, conn, id_columns):
 # Main function to save the DataFrame to SQLite
 
 
-def save_to_sqlite(data, table_name, conn, ticker, id_columns=None, mode='replace'):
+def save_to_sqlite(data, table_name, conn, ticker,
+                   id_columns=None, mode='replace'):
     """
     Save the DataFrame to an SQLite table, creating it if it doesn't exist or adding missing columns if needed.
     """
@@ -275,7 +278,8 @@ def save_to_sqlite(data, table_name, conn, ticker, id_columns=None, mode='replac
 # Function to update the pipeline log
 
 
-def update_pipeline_log(conn, ticker, timestamp_col='last_run', latest_timestamp=None):
+def update_pipeline_log(
+        conn, ticker, timestamp_col='last_run', latest_timestamp=None):
     """
     Insert or update the pipeline log with the current timestamp.
     """
