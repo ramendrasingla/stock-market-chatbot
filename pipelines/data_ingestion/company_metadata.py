@@ -1,3 +1,7 @@
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../..")
+
 from utils.data_storage import (connect_db, save_to_sqlite, initialize_table,
                                 get_last_run_timestamp, update_pipeline_log)
 from utils.data_extraction import (get_analyst_recommendations, get_company_info,
@@ -5,9 +9,6 @@ from utils.data_extraction import (get_analyst_recommendations, get_company_info
 from utils.helper_funcs import setup_logging
 from tqdm import tqdm
 import traceback
-import sys
-import os
-sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../..")
 
 
 # Setup Logging
