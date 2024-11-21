@@ -1,6 +1,11 @@
+"""
+Data Preprocessing Utilities
+"""
+
 import re
-import pandas as pd
+
 import numpy as np
+import pandas as pd
 
 
 class DataPreprocessor:
@@ -17,8 +22,8 @@ class DataPreprocessor:
         """
         non_null_values = column[column.notnull()]
         numeric_count = sum(
-            isinstance(val, (int, float)) or
-            str(val).replace('.', '', 1).replace('-', '', 1).isdigit()
+            isinstance(val, (int, float))
+            or str(val).replace(".", "", 1).replace("-", "", 1).isdigit()
             for val in non_null_values
         )
         total_count = len(non_null_values)
@@ -37,6 +42,7 @@ class DataPreprocessor:
         Returns:
             bool: True if the column is datetime-like, False otherwise.
         """
+
         def is_valid_datetime(value):
             try:
                 if pd.isna(value):
@@ -54,16 +60,16 @@ class DataPreprocessor:
         if total_count == 0:
             return False
         return valid_count / total_count >= threshold
-    
+
     @staticmethod
     def preprocess_latest_date_value(column):
         """
         Extract the value corresponding to the latest date from newline-separated entries.
         If no valid date-value pairs are found, return the original entry.
-        
+
         Parameters:
             column (pd.Series): Input column with newline-separated date-value pairs.
-        
+
         Returns:
             pd.Series: Cleaned column with values corresponding to the latest date.
         """
@@ -71,23 +77,25 @@ class DataPreprocessor:
         def extract_latest(entry):
             if not isinstance(entry, str):
                 return entry  # Return original value for non-strings
-            
+
             # Split the entry by newline and process each line
-            lines = entry.split('\n')
+            lines = entry.split("\n")
             date_value_pairs = []
-            
+
             for line in lines:
-                # Match date and numeric value pairs (e.g., "2024-03-31    12345.67")
+                # Match date and numeric value pairs (e.g., "2024-03-31
+                # 12345.67")
                 match = re.match(r"(\d{4}-\d{2}-\d{2})\s+([+-]?\d*\.?\d+|NaN)", line.strip())
                 if match:
                     date, value = match.groups()
                     if value.lower() != "nan":  # Exclude NaN values
                         date_value_pairs.append((date, float(value)))
-            
+
             # Sort pairs by date (latest first)
             date_value_pairs.sort(key=lambda x: x[0], reverse=True)
-            
-            # Return the value for the latest date, or original entry if no valid pairs
+
+            # Return the value for the latest date, or original entry if no
+            # valid pairs
             return date_value_pairs[0][1] if date_value_pairs else entry
 
         # Apply the extraction logic to the entire column
@@ -108,6 +116,7 @@ class DataPreprocessor:
         Returns:
             pd.Series: Preprocessed column.
         """
+
         def clean_value(value):
             if pd.isna(value):
                 return np.nan  # Preserve NaN
@@ -137,6 +146,7 @@ class DataPreprocessor:
         Returns:
             pd.Series: Preprocessed column with datetime or NaT.
         """
+
         def convert_to_datetime(value):
             try:
                 if date_format:

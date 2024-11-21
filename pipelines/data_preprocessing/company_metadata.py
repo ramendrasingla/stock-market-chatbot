@@ -1,8 +1,11 @@
-import sys
-import os
-sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../..")
+"""
+Data Preprocessing pipeline for company metadata.
+"""
 
-import sqlite3
+import os
+import sys
+
+sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../..")
 import pandas as pd
 
 from utils.data_preprocessing import DataPreprocessor
@@ -12,6 +15,7 @@ from utils.helper_funcs import setup_logging
 # Setup Logging
 global logger
 logger = setup_logging()
+
 
 def preprocess_table(table_name, raw_table_conn):
     """
@@ -24,7 +28,7 @@ def preprocess_table(table_name, raw_table_conn):
     Returns:
         None: Saves the preprocessed table back to the database.
     """
-    
+
     df = pd.read_sql_query(f"SELECT * FROM {table_name}", raw_table_conn)
     # Preprocess Numeric Columns
     numeric_processed_columns = []
@@ -32,7 +36,7 @@ def preprocess_table(table_name, raw_table_conn):
         if df[col].dtype == "object" and DataPreprocessor.is_numeric_like(df[col]):
             logger.info(f"Preprocessing numeric-like column: {col}")
 
-            if df[col].str.contains('\n', na=False).any():
+            if df[col].str.contains("\n", na=False).any():
                 logger.info(f"Preprocessing column: {col} (contains rows with '\\n')")
                 df[col] = DataPreprocessor.preprocess_latest_date_value(df[col])
 
@@ -55,19 +59,20 @@ def preprocess_table(table_name, raw_table_conn):
                 df = df[~df.index.isin(problematic_rows.index)]
 
     # Save the cleaned table back to the SQLite database
-    final_conn = connect_db(db_name='company_metadata.db', folder_path='./data/preprocessed')
+    final_conn = connect_db(db_name="company_metadata.db", folder_path="./data/preprocessed")
     df.to_sql(table_name, final_conn, if_exists="replace", index=False)
     final_conn.close()
     logger.info(f"Preprocessed and saved table: {table_name}")
 
+
 # Main function to initiate the pipeline
 if __name__ == "__main__":
     # Run preprocessing on all tables
-    raw_table_conn = connect_db(db_name='company_metadata.db', folder_path='./data/raw')
+    raw_table_conn = connect_db(db_name="company_metadata.db", folder_path="./data/raw")
     tables = ["company_info", "balance_sheet", "income_statement", "cash_flow", "historical_data"]
 
     for table in tables:
         logger.info(f"Preprocessing Table: {table}")
         preprocess_table(table, raw_table_conn)
-    
+
     raw_table_conn.close()
