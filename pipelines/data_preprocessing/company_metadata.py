@@ -1,15 +1,16 @@
 """
 Data Preprocessing pipeline for company metadata.
 """
+
 import os
 import sys
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../..")
+import pandas as pd
+
 from utils.data_preprocessing import DataPreprocessor
 from utils.data_storage import connect_db
 from utils.helper_funcs import setup_logging
-
-import pandas as pd
 
 # Setup Logging
 global logger

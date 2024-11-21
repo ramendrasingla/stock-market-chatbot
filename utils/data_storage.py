@@ -1,15 +1,16 @@
 """
 Data Storage
 """
+
 import os
-import sys
 import re
 import sqlite3
+import sys
 from datetime import datetime
+
 import pandas as pd
 
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__)
-                                             , "../")))
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../")))
 from utils.helper_funcs import generate_id, setup_logging
 
 # Setup Logging

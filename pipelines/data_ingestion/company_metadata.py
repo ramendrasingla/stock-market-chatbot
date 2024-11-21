@@ -5,9 +5,10 @@ Data Ingestion pipeline for company metadata.
 import os
 import sys
 import traceback
+
 from tqdm import tqdm
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__)
-                                             , "../../")))
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../")))
 
 from utils.data_extraction import (
     get_analyst_recommendations,

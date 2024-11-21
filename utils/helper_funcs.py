@@ -1,6 +1,7 @@
 """
 Common Helper Functions
 """
+
 import logging
 from datetime import timezone
 from logging.handlers import RotatingFileHandler

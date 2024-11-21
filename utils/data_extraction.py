@@ -1,10 +1,12 @@
 """
 Data Extraction
 """
+
 import os
 import sys
 import time
 from datetime import datetime
+
 import pandas as pd
 import requests
 import yfinance as yf
@@ -13,8 +15,7 @@ from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from webdriver_manager.chrome import ChromeDriverManager
 
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__)
-                                             , "../")))
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../")))
 from utils.helper_funcs import setup_logging
 
 # Setup Logging
