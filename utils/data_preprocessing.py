@@ -54,16 +54,16 @@ class DataPreprocessor:
         if total_count == 0:
             return False
         return valid_count / total_count >= threshold
-    
+
     @staticmethod
     def preprocess_latest_date_value(column):
         """
         Extract the value corresponding to the latest date from newline-separated entries.
         If no valid date-value pairs are found, return the original entry.
-        
+
         Parameters:
             column (pd.Series): Input column with newline-separated date-value pairs.
-        
+
         Returns:
             pd.Series: Cleaned column with values corresponding to the latest date.
         """
@@ -71,22 +71,23 @@ class DataPreprocessor:
         def extract_latest(entry):
             if not isinstance(entry, str):
                 return entry  # Return original value for non-strings
-            
+
             # Split the entry by newline and process each line
             lines = entry.split('\n')
             date_value_pairs = []
-            
+
             for line in lines:
                 # Match date and numeric value pairs (e.g., "2024-03-31    12345.67")
-                match = re.match(r"(\d{4}-\d{2}-\d{2})\s+([+-]?\d*\.?\d+|NaN)", line.strip())
+                match = re.match(
+                    r"(\d{4}-\d{2}-\d{2})\s+([+-]?\d*\.?\d+|NaN)", line.strip())
                 if match:
                     date, value = match.groups()
                     if value.lower() != "nan":  # Exclude NaN values
                         date_value_pairs.append((date, float(value)))
-            
+
             # Sort pairs by date (latest first)
             date_value_pairs.sort(key=lambda x: x[0], reverse=True)
-            
+
             # Return the value for the latest date, or original entry if no valid pairs
             return date_value_pairs[0][1] if date_value_pairs else entry
 

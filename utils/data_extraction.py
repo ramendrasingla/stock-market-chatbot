@@ -16,7 +16,9 @@ global logger
 logger = setup_logging()
 
 # Function to scrape Indian stock market tickers
-def scrape_nse_tickers(folder_path = "./data", output_col = 'Symbol'):
+
+
+def scrape_nse_tickers(folder_path="./data", output_col='Symbol'):
 
     # Set up the Chrome WebDriver
     driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()))
@@ -37,7 +39,8 @@ def scrape_nse_tickers(folder_path = "./data", output_col = 'Symbol'):
 
     # Save excel file and extract tickers
     headers = {'User-Agent': 'Mozilla/5.0'}
-    response = requests.get(excel_url, headers=headers, allow_redirects=True, verify=False, timeout=10)
+    response = requests.get(excel_url, headers=headers,
+                            allow_redirects=True, verify=False, timeout=10)
     file_path = os.path.join(folder_path, 'temp.xlsx')
     # Save the content as an .xlsx file
     with open(file_path, 'wb') as file:
@@ -53,10 +56,12 @@ def scrape_nse_tickers(folder_path = "./data", output_col = 'Symbol'):
 
     return nse_tickers
 
+
 def get_company_info(ticker):
     company = yf.Ticker(ticker)
     info = company.info
     return info
+
 
 def get_financial_statements(ticker):
     company = yf.Ticker(ticker)
@@ -70,17 +75,21 @@ def get_financial_statements(ticker):
     cash_flow = cash_flow.T
 
     # Adding period
-    balance_sheet['period'] = pd.to_datetime(balance_sheet.index, errors='coerce')
-    income_statement['period'] = pd.to_datetime(income_statement.index, errors='coerce')
+    balance_sheet['period'] = pd.to_datetime(
+        balance_sheet.index, errors='coerce')
+    income_statement['period'] = pd.to_datetime(
+        income_statement.index, errors='coerce')
     cash_flow['period'] = pd.to_datetime(cash_flow.index, errors='coerce')
 
     return balance_sheet, income_statement, cash_flow
+
 
 def get_historical_data(ticker, period='max'):
     company = yf.Ticker(ticker)
     hist_data = company.history(period=period)
     hist_data['period'] = pd.to_datetime(hist_data.index, errors='coerce')
     return hist_data
+
 
 def get_analyst_recommendations(ticker):
     company = yf.Ticker(ticker)
