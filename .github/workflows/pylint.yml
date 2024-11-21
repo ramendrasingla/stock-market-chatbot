@@ -24,6 +24,7 @@ jobs:
       run: |
         # Run Pylint and output the score
         pylint $(git ls-files '*.py') > pylint_output.txt || true
+        pylint $(git ls-files '*.py')
         # Extract the score from Pylint output
         score=$(grep "Your code has been rated at" pylint_output.txt | awk '{print $7}' | cut -d'/' -f1)
         echo "Pylint score: $score"
