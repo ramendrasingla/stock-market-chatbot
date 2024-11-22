@@ -35,10 +35,11 @@ def preprocess_table(table_name, raw_table_conn):
     for col in df.columns:
         if df[col].dtype == "object" and DataPreprocessor.is_numeric_like(df[col]):
             logger.info(f"Preprocessing numeric-like column: {col}")
-
-            if df[col].str.contains("\n", na=False).any():
-                logger.info(f"Preprocessing column: {col} (contains rows with '\\n')")
-                df[col] = DataPreprocessor.preprocess_latest_date_value(df[col])
+            # Check and process string columns only
+            if pd.api.types.is_string_dtype(df[col]):
+                if df[col].str.contains("\n", na=False).any():
+                    logger.info(f"Preprocessing column: {col} (contains rows with '\\n')")
+                    df[col] = DataPreprocessor.preprocess_latest_date_value(df[col])
 
             df[col] = DataPreprocessor.preprocess_nan_numeric_and_spaces(df[col])
             problematic_rows = DataPreprocessor.validate_post_preprocessing_for_numeric(df[col])
@@ -69,7 +70,14 @@ def preprocess_table(table_name, raw_table_conn):
 if __name__ == "__main__":
     # Run preprocessing on all tables
     raw_table_conn = connect_db(db_name="company_metadata.db", folder_path="./data/raw")
-    tables = ["company_info", "balance_sheet", "income_statement", "cash_flow", "historical_data"]
+    tables = [
+        "company_info",
+        "balance_sheet",
+        "income_statement",
+        "cash_flow",
+        "historical_data",
+        "analyst_recommendations",
+    ]
 
     for table in tables:
         logger.info(f"Preprocessing Table: {table}")
