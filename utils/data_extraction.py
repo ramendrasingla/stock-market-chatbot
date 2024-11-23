@@ -9,7 +9,6 @@ from datetime import datetime
 
 import pandas as pd
 import requests
-import yfinance as yf
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
@@ -65,14 +64,14 @@ def scrape_nse_tickers(folder_path="./data", output_col="Symbol"):
     return nse_tickers
 
 
-def get_company_info(ticker):
-    company = yf.Ticker(ticker)
+def get_company_info(company):
+
     info = company.info
     return info
 
 
-def get_financial_statements(ticker):
-    company = yf.Ticker(ticker)
+def get_financial_statements(company):
+
     balance_sheet = company.balance_sheet
     income_statement = company.financials
     cash_flow = company.cashflow
@@ -90,14 +89,8 @@ def get_financial_statements(ticker):
     return balance_sheet, income_statement, cash_flow
 
 
-def get_historical_data(ticker, period="max"):
-    company = yf.Ticker(ticker)
+def get_historical_data(company, period="max"):
+
     hist_data = company.history(period=period)
     hist_data["period"] = pd.to_datetime(hist_data.index, errors="coerce")
     return hist_data
-
-
-def get_analyst_recommendations(ticker):
-    company = yf.Ticker(ticker)
-    recommendations = company.recommendations
-    return recommendations
