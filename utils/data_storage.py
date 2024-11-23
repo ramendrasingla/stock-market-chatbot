@@ -2,11 +2,11 @@
 Data Storage
 """
 
+import json
 import os
 import re
 import sqlite3
 import sys
-from datetime import datetime
 
 import pandas as pd
 
@@ -36,38 +36,7 @@ def connect_db(db_name=None, folder_path="./data"):
     return conn
 
 
-def initialize_table(conn, script_path="pipeline_log.sql"):
-
-    with open(script_path, "r") as file:
-        sql_script = file.read()
-        try:
-            # Execute the SQL script
-            conn.executescript(sql_script)
-            logger.info(f'Successfully executed: {script_path.split("/")[-1]}')
-        except sqlite3.Error as e:
-            logger.error(f'Error executing {script_path.split("/")[-1]}: {e}')
-
-    conn.commit()
-    return
-
-
-# Get the last run timestamp for a given ticker
-
-
-def get_last_run_timestamp(conn, ticker, timestamp_col="last_run"):
-    """
-    During delta run, we are interested in knowing the last run
-    """
-    query = f"""SELECT {timestamp_col} 
-            FROM pipeline_log 
-            WHERE ticker = ? 
-            ORDER BY {timestamp_col} DESC LIMIT 1;
-            """
-    cursor = conn.execute(query, (ticker,))
-    result = cursor.fetchone()
-    if result:
-        return result[0]
-    return None
+# Function to handle SQL errors(identifying problematic column(s))
 
 
 def handle_sql_error(e, df):
@@ -109,40 +78,6 @@ def handle_sql_error(e, df):
             )
     else:
         logger.error("Could not extract column index from the error message.")
-
-
-# Helper function to preprocess the DataFrame
-
-
-def preprocess_dataframe(df):
-    """
-    Preprocess the DataFrame: format datetime columns, adjust numeric types,
-    and handle object and boolean columns for SQLite compatibility.
-    """
-    if "period" in df.columns and pd.api.types.is_datetime64_any_dtype(df["period"]):
-        df["period"] = df["period"].dt.strftime("%Y-%m-%d %H:%M:%S")
-
-    for col in df.columns:
-        if pd.api.types.is_numeric_dtype(df[col]):
-            df[col] = handle_numeric_columns(df[col])
-        elif pd.api.types.is_object_dtype(df[col]):
-            df[col] = df[col].astype(str)
-        elif pd.api.types.is_bool_dtype(df[col]):
-            df[col] = df[col].astype(int)
-
-    return df
-
-
-def handle_numeric_columns(column):
-    """
-    Adjust numeric column types for SQLite compatibility.
-    Convert int64 to float64 if necessary.
-    """
-    if column.dtype == "int64":
-        return column.astype("float64")
-    if column.dtype == "float64":
-        return column.astype("float64")
-    return column
 
 
 # Function to create a table in SQLite if it doesn't exist
@@ -223,6 +158,9 @@ def add_missing_columns(df, table_name, conn):
         finally:
             cursor.close()
 
+    new_columns = set(existing_columns) - set(df.columns)
+    return set(existing_columns), new_columns
+
 
 # Function to map Pandas data types to SQLite data types
 
@@ -238,98 +176,79 @@ def map_dtype_to_sqlite(dtype):
     return "TEXT"
 
 
-# Function to insert or upsert data
-
-
-def upsert_data(df, table_name, conn, id_columns):
-    """
-    Insert or upsert data into the SQLite table,
-    handling conflicts on primary key or unique constraints.
-    """
-    columns = ", ".join([f'"{col}"' for col in df.columns])
-    placeholders = ", ".join(["?"] * len(df.columns))
-    update_clause = ", ".join(
-        [f'"{col}" = excluded."{col}"' for col in df.columns if col not in id_columns]
-    )
-
-    upsert_sql = f"""
-    INSERT INTO "{table_name}" ({columns})
-    VALUES ({placeholders})
-    ON CONFLICT({', '.join([f'"{col}"' for col in id_columns])}) DO UPDATE SET {update_clause};
-    """
-
-    try:
-        conn.executemany(upsert_sql, df.values.tolist())
-        conn.commit()
-        logger.info(f"Data successfully upserted to '{table_name}'.")
-    except Exception as e:
-        handle_sql_error(e, df)
-
-
 # Main function to save the DataFrame to SQLite
 
 
-def save_to_sqlite(data, table_name, conn, ticker, id_columns=None):
+def dict_to_sqlite(data, table_name, conn, id_columns=None):
     """
     Save the DataFrame to an SQLite table,
     creating it if it doesn't exist or adding missing columns if needed.
     """
 
     try:
+
         wrapped_data = {k: v if isinstance(v, list) else [v] for k, v in data.items()}
+        wrapped_data = {k: v for k, v in wrapped_data.items() if len(v) == 1}
+
         df = pd.DataFrame(wrapped_data)
-
-        df["ticker"] = ticker
-        df["ticker_id"] = str(generate_id(ticker))
-
-        df = preprocess_dataframe(df)
 
         if not table_exists(conn, table_name):
             create_table_if_not_exists(df, table_name, conn, id_columns)
         else:
-            add_missing_columns(df, table_name, conn)
+            _ = add_missing_columns(df, table_name, conn)
 
         df = df.where(pd.notnull(df), None)
-        upsert_data(df, table_name, conn, id_columns)
+
+        # Insert/append rows into the SQLite table
+        columns = ", ".join([f'"{col}"' for col in df.columns])
+        placeholders = ", ".join(["?"] * len(df.columns))
+        insert_sql = f"""
+        INSERT INTO "{table_name}" ({columns})
+        VALUES ({placeholders});
+        """
+
+        conn.executemany(insert_sql, df.values.tolist())
+        conn.commit()
+        logger.info(f"Data successfully inserted into '{table_name}'.")
 
     except Exception as e:
-        # Debugging DF
-        logger.error(data)
+        # Debugging the DataFrame in case of failure
+        logger.error(wrapped_data)
         raise e
 
 
-# Function to update the pipeline log
-
-
-def update_pipeline_log(conn, ticker, timestamp_col="last_run", latest_timestamp=None):
+def df_to_sqlite(df, table_name, id_columns, conn):
     """
-    Insert or update the pipeline log with the current timestamp.
+    Append a DataFrame to an SQLite table, handling schema differences by
+    altering the table for new columns and adding NULL values for missing columns.
+
+    Parameters:
+        df (pd.DataFrame): The DataFrame to append.
+        table_name (str): The name of the SQLite table.
+        db_path (str): The path to the SQLite database file.
     """
-    if not latest_timestamp:
-        latest_timestamp = datetime.now()
+    # Get DataFrame columns
+    df_columns = set(df.columns)
 
-    query = f"INSERT INTO pipeline_log (ticker, {timestamp_col}) VALUES (?, ?)"
+    if not table_exists(conn, table_name):
+        create_table_if_not_exists(df, table_name, conn, id_columns)
+        existing_columns = df_columns
+        new_columns = set([])
+    else:
+        existing_columns, new_columns = add_missing_columns(df, table_name, conn)
 
-    try:
-        conn.execute(query, (ticker, latest_timestamp))
-        conn.commit()
-    except sqlite3.IntegrityError as e:
-        logger.error(f"Error updating pipeline log: {e}")
+    # Columns to add to the DataFrame
+    missing_columns = existing_columns - df_columns
+    for col in missing_columns:
+        # Add missing columns to the DataFrame with NULL values
+        df[col] = None
 
+    # Ensure the column order matches between DataFrame and table
+    df = df[[col for col in existing_columns | new_columns]]
 
-def log_published_dates(conn, ticker, oldest_date, latest_date):
-    """
-    Logs the oldest and latest published dates in the pipeline_log table.
-    """
-    cursor = conn.cursor()
-    cursor.execute(
-        """
-        INSERT INTO pipeline_log (ticker, oldest_published_date, latest_published_date)
-        VALUES (?, ?, ?)
-        ON CONFLICT(ticker) DO UPDATE SET
-        oldest_published_date=excluded.oldest_published_date,
-        latest_published_date=excluded.latest_published_date
-    """,
-        (ticker, oldest_date.isoformat(), latest_date.isoformat()),
-    )
+    # Append the DataFrame to the table
+    df.to_sql(table_name, conn, if_exists="append", index=False)
+    logger.info(f"Data appended to table '{table_name}'.")
+
+    # Commit the connection
     conn.commit()

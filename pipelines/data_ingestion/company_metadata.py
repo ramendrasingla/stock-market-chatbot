@@ -6,25 +6,19 @@ import os
 import sys
 import traceback
 
+import yfinance as yf
 from tqdm import tqdm
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../")))
 
 from utils.data_extraction import (
-    get_analyst_recommendations,
     get_company_info,
     get_financial_statements,
     get_historical_data,
     scrape_nse_tickers,
 )
-from utils.data_storage import (
-    connect_db,
-    get_last_run_timestamp,
-    initialize_table,
-    save_to_sqlite,
-    update_pipeline_log,
-)
-from utils.helper_funcs import setup_logging
+from utils.data_storage import connect_db, df_to_sqlite, dict_to_sqlite
+from utils.helper_funcs import generate_id, setup_logging
 
 # Setup Logging
 global logger
@@ -33,82 +27,59 @@ logger = setup_logging()
 # Function to execute a single company's pipeline
 
 
-def execute_company_pipeline(conn, ticker, load_type="init"):
+def execute_company_pipeline(conn, ticker):
     ticker = ticker.strip()
-
-    # Determine if it's an initial or delta load
-    if load_type == "delta":
-        last_run_timestamp = get_last_run_timestamp(conn, ticker)
-        if not last_run_timestamp:
-            logger.info(f"No previous run found for {ticker}. Running full init load.")
-            load_type = "init"  # Switch to init if no previous run
-
+    yf_ticker = yf.Ticker(ticker)
     # Fetch company data
-    company_info = get_company_info(ticker)
-    balance_sheet, income_statement, cash_flow = get_financial_statements(ticker)
-    historical_data = get_historical_data(ticker)
-    analyst_recommendations = get_analyst_recommendations(ticker)
+    company_info = get_company_info(yf_ticker)
+    balance_sheet, income_statement, cash_flow = get_financial_statements(yf_ticker)
+    historical_data = get_historical_data(yf_ticker)
+    ticker_id = generate_id(ticker)
 
     # Save data to SQLite
-    save_to_sqlite(company_info, "company_info", conn, ticker=ticker, id_columns=["ticker_id"])
-    save_to_sqlite(
-        balance_sheet, "balance_sheet", conn, ticker=ticker, id_columns=["ticker_id", "period"]
-    )
-    save_to_sqlite(
-        income_statement,
-        "income_statement",
-        conn,
-        ticker=ticker,
-        id_columns=["ticker_id", "period"],
-    )
-    save_to_sqlite(cash_flow, "cash_flow", conn, ticker=ticker, id_columns=["ticker_id", "period"])
-    save_to_sqlite(
-        analyst_recommendations,
-        "analyst_recommendations",
-        conn,
-        ticker=ticker,
-        id_columns=["ticker_id", "period"],
+    company_info["ticker"], company_info["ticker_id"] = ticker, ticker_id
+    del company_info["companyOfficers"]
+    dict_to_sqlite(company_info, "company_info", conn, id_columns=["ticker_id"])
+
+    balance_sheet["ticker"], balance_sheet["ticker_id"] = ticker, ticker_id
+    df_to_sqlite(
+        table_name="balance_sheet", df=balance_sheet, id_columns=["ticker_id", "period"], conn=conn
     )
 
-    # Handle historical data for delta load
-    if load_type == "delta":
-        new_historical_data = historical_data[historical_data.index > last_run_timestamp]
-        save_to_sqlite(
-            new_historical_data,
-            "historical_data",
-            conn,
-            ticker=ticker,
-            id_columns=["ticker_id", "period"],
-        )
-    else:
-        save_to_sqlite(
-            historical_data,
-            "historical_data",
-            conn,
-            ticker=ticker,
-            id_columns=["ticker_id", "period"],
-        )
+    income_statement["ticker"], income_statement["ticker_id"] = ticker, ticker_id
+    df_to_sqlite(
+        table_name="income_statement",
+        df=income_statement,
+        id_columns=["ticker_id", "period"],
+        conn=conn,
+    )
 
-    # Update the pipeline log with the current timestamp
-    update_pipeline_log(conn, ticker)
+    cash_flow["ticker"], cash_flow["ticker_id"] = ticker, ticker_id
+    df_to_sqlite(
+        table_name="cash_flow", df=cash_flow, id_columns=["ticker_id", "period"], conn=conn
+    )
+
+    historical_data["ticker"], historical_data["ticker_id"] = ticker, ticker_id
+    df_to_sqlite(
+        table_name="historical_data",
+        df=historical_data,
+        id_columns=["ticker_id", "period"],
+        conn=conn,
+    )
 
 
 # Function to run the pipeline for all companies or specific tickers
 
 
-def run_pipeline_for_companies(load_type="init", tickers=None, use_failed_tickers=False):
+def run_pipeline_for_companies(tickers=None, use_failed_tickers=False):
 
     logger.info(
         f"""Running pipeline for {('all' if not tickers else 'specified')} 
-        companies as {load_type} load..."""
+        companies"""
     )
 
     # Connect to SQLite3 database
     conn = connect_db(db_name="company_metadata.db", folder_path="./data/raw")
-
-    # Initialize pipeline log for init load
-    if load_type == "init":
-        initialize_table(conn, script_path="./metadata/company_metadata/pipeline_log.sql")
 
     # Get tickers either from scraped tickers, passed tickers, or failed log
     if use_failed_tickers:
@@ -137,7 +108,7 @@ def run_pipeline_for_companies(load_type="init", tickers=None, use_failed_ticker
     for ticker in tqdm(tickers):
         logger.info(f"Processing {ticker}...")
         try:
-            execute_company_pipeline(conn, ticker, load_type)
+            execute_company_pipeline(conn, ticker)
         except Exception as e:
             # Log the error for this ticker
             logger.error(f"Failed to process {ticker}. Error: {e}")
@@ -165,14 +136,13 @@ def run_pipeline_for_companies(load_type="init", tickers=None, use_failed_ticker
 
 # Main function to initiate the pipeline
 if __name__ == "__main__":
-    load_type = input("Enter load type ('init' or 'delta'): ").lower()
+
     specific_tickers = input(
         "Enter specific tickers (comma separated) or press Enter to skip: "
     ).split(",")
     use_failed = input("Use failed tickers log? (y/n): ").lower() == "y"
-
     # Run pipeline based on input
     if specific_tickers[0]:  # If specific tickers are provided
-        run_pipeline_for_companies(load_type=load_type, tickers=specific_tickers)
+        run_pipeline_for_companies(tickers=specific_tickers)
     else:
-        run_pipeline_for_companies(load_type=load_type, use_failed_tickers=use_failed)
+        run_pipeline_for_companies(use_failed_tickers=use_failed)
